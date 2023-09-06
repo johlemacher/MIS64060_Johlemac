@@ -1,0 +1,88 @@
+---
+title: "R Notebook"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+## 1. Using R Crabs dataset: ##https://stat.ethz.ch/R-manual/R-devel/library/MASS/html/crabs.html
+
+```{r}
+## 2. Load Crabs Dataset
+library(MASS)
+data(crabs)
+
+```
+
+```{r}
+## 3. Print descriptive stats for Crabs Dataset
+summary_crabs <- summary(crabs)
+print(summary_crabs)
+
+```
+
+```{r}
+## Mean, Min, Max of BD
+mean_BD <- mean(crabs$BD)
+min_BD <- min(crabs$BD)
+max_BD <- max(crabs$BD)
+print(mean_BD)
+print(min_BD)
+print(max_BD)
+```
+
+```{r}
+## Frequency table of species (categorical variable summary stat)
+freqtable_sp <- table(crabs$sp)
+print(freqtable_sp)
+```
+```{r}
+## 3. Transform variable
+
+## Group by species and sex
+library(dplyr)
+species_sex_group <- crabs %>% group_by(sp,sex)
+print (species_sex_group)
+```
+
+```{r}
+## Scale BD
+scaled_BD <- scale(crabs$BD)
+print(scaled_BD)
+
+```
+
+```{r}
+## 4. Plot one quantitative variable and one scatterplot
+library(ggplot2)
+
+boxplot(crabs$BD)
+```
+```{r}
+## Scatterplot
+data(crabs)  
+plot(crabs$CL, crabs$CW, main = "CL vs CW Scatterplot", xlab = "CL", ylab = "CW", pch = 16, col = "blue")
+
+```
+
+```{r}
+## Plot one quantitative variable
+ggplot(crabs, aes(x = BD, y = factor(sp))) +
+  geom_point() +
+  labs(x = "Body Depth (BD)", y = "Species") +
+  theme_minimal()
+
+```
+

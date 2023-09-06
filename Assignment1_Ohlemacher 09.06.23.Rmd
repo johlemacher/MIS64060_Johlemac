@@ -1,0 +1,52 @@
+---
+title: "Assignment 1"
+author: "Jocelyn Ohlemacher"
+date: "2023-09-06"
+output: html_document
+
+## 1. Using R Crabs dataset: ##https://stat.ethz.ch/R-manual/R-devel/library/MASS/html/crabs.html
+
+
+## 2. Load Crabs Dataset
+install.packages("MASS")
+library(MASS)
+data(crabs)
+
+## 3. Print descriptive stats for Crabs Dataset
+summary_crabs <- summary(crabs)
+print(summary_crabs)
+
+## Mean, Min, Max of BD
+mean_BD <- mean(crabs$BD)
+min_BD <- min(crabs$BD)
+max_BD <- max(crabs$BD)
+
+## Frequency table of species (categorical variable summary stat)
+freqtable_sp <- table(crabs$sp)
+
+## 3. Transform variable
+
+## Group by species and sex
+library(dplyr)
+species_sex_group <- crabs %>% group_by(sp,sex)
+print (species_sex_group)
+
+## Scale BD
+scaled_BD <- scale(crabs$BD)
+print(scaled_BD)
+
+## 4. Plot one quantitative variable and one scatterplot
+library(ggplot2)
+
+boxplot(crabs$BD)
+
+## Scatterplot
+data(crabs)  
+plot(crabs$CL, crabs$CW, main = "CL vs CW Scatterplot", xlab = "CL", ylab = "CW", pch = 16, col = "blue")
+
+## Plot one quantitative variable
+ggplot(crabs, aes(x = BD, y = factor(sp))) +
+  geom_point() +
+  labs(x = "Body Depth (BD)", y = "Species") +
+  theme_minimal()
+

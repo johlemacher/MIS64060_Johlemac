@@ -1,0 +1,228 @@
+---
+title: "Ohlemacher_Assignment2"
+output: html_notebook
+---
+
+```{r}
+UniversalBank <- read.csv("C:\\Users\\Chris\\Desktop\\Jocelyn\\Machine Learning\\Assignment II\\UniversalBank.csv", header = TRUE, sep = ",")
+```
+
+```{r}
+install.packages("gmodels")
+library(caret)
+library(ISLR)
+library(dplyr)
+library(class)
+library(gmodels)
+```
+```{r}
+##Creating dummy variables
+UniversalBank$Education_1<-ifelse(UniversalBank$Education==1,"1",0)
+UniversalBank$Education_2<-ifelse(UniversalBank$Education==2,"1",0)
+UniversalBank$Education_3<-ifelse(UniversalBank$Education==3,"1",0)
+print(UniversalBank)
+
+```
+
+```{r}
+## creating dataset with only desired data columns for model
+m_UBank <- UniversalBank %>%
+  select(-ZIP.Code, -Education, -ID)
+print(m_UBank)
+
+```
+
+```{r}
+## Normalize quantitative variables
+norm_model<-preProcess(m_UBank[, 1:6], method = c("center", "scale"))
+UBank_normalized<-predict(norm_model,m_UBank)
+summary(UBank_normalized)
+```
+
+```{r}
+# Use 60% of data for training and the rest for testing
+set.seed(12)
+Test_Index = createDataPartition(UBank_normalized$Personal.Loan,p=0.4, list=FALSE) # 40% reserved for Test
+Test_Data = UBank_normalized[Test_Index,] #Test Data
+Train_Data = UBank_normalized[-Test_Index,] # Training Data
+summary(Test_Data)
+summary(Train_Data)
+```
+
+```{r}
+##Create training predictors, training outcome, test predictors, and test outcome dataframes
+
+Train_Predictors<-Train_Data[, c(1:6,8:14)] 
+Test_Predictors<-Test_Data[, c(1:6,8:14)]
+print(Train_Predictors)
+print(Test_Predictors)
+Train_labels <-Train_Data[,7] 
+Test_labels  <-Test_Data[,7] 
+print(Train_labels)
+print(Test_labels)
+```
+```{r}
+Predicted_Test_labels <-knn(Train_Predictors, 
+                           Test_Predictors, 
+                           cl=Train_labels, 
+               k=1 )
+# Look at the 6 first values of predicted class (i.e., default status) of test set
+head(Predicted_Test_labels)
+```
+```{r}
+## Creat confusion matrix for test predictors vs test labels
+CrossTable(x=Test_labels,y=Predicted_Test_labels, prop.chisq = FALSE)
+```
+
+
+```{r}
+##Loading Data for individual in Question 1 of assignment
+Q1_individual <- data.frame(
+  Age = 40,
+  Experience = 10, 
+  Income = 84, 
+  Family = 2, 
+  CCAvg = 2,
+  Mortgage = 0,
+  Securities.Account = 0,
+  CD.Account = 0,
+  Online = 1,
+  CreditCard = 1,
+  Education_1 = 0,
+  Eduction_2 = 1,
+  Education_3 = 0)
+  
+## Normalize data for Question 1 Individual against norm model for original dataset
+Q1_individual_normalized <- predict(norm_model, newdata = data.frame(Q1_individual))
+print(Q1_individual_normalized)
+
+```
+```{r}
+
+##Predicting class for individual in Question 1
+predicted_class <- knn(train = Train_Predictors, test = Q1_individual_normalized, cl = Train_labels, k = 1)
+
+## Predicated Class for Individual - Prediction = 0
+print(predicted_class)
+```
+
+```{r}
+## Determine best K 
+
+UBank_normalized$Personal.Loan <- factor(UBank_normalized$Personal.Loan, levels = c(0, 1))
+                                         
+set.seed(2)
+model<-train(Personal.Loan~Age+Experience+Income+Family+CCAvg+Mortgage+Securities.Account+CD.Account+Online+CreditCard+Education_1+Education_2+Education_3, data=UBank_normalized, method="knn")
+model
+```
+
+```{r}
+best_k <- model$bestTune$k
+print(best_k)
+```
+
+
+```{r}
+
+## Rerun model using best K=7
+Predicted_Test_labels_model2 <-knn(Train_Predictors, 
+                           Test_Predictors, 
+                           cl=Train_labels, 
+               k=7 )
+
+##Confusion matrix for Model 2
+CrossTable(x=Test_labels,y=Predicted_Test_labels_model2, prop.chisq = FALSE)
+```
+
+```{r}
+##Predicting class for Q1_Individual using Best K=7
+predicted_class_model2 <- knn(train = Train_Predictors, test = Q1_individual_normalized, cl = Train_labels, k = 7)
+
+## Predicated Class for Individual in Q4. Prediction = 0, no personal loan 
+print(predicted_class)
+```
+
+```{r}
+## Question 5: Repartition data into training, validation, and test sets
+set.seed(12)
+Q5Train_Index = createDataPartition(UBank_normalized$Personal.Loan,p=0.5, list=FALSE) # 50% for train
+Q5Train_Data = UBank_normalized[Q5Train_Index,] #Train Data
+Q5Test_Val_Data = UBank_normalized[-Q5Train_Index,] # Test and validation Data
+
+```
+
+```{r}
+## Splitting remaining 50% of data into test and validation sets
+set.seed(12)
+Q5Test_Index = createDataPartition(Q5Test_Val_Data$Personal.Loan,p=0.4, list=FALSE) # 20% for test
+Q5Test_Data = Q5Test_Val_Data[Q5Test_Index,] #Test Data
+Q5Val_Data = Q5Test_Val_Data[-Q5Test_Index,] # 30% validation Data
+```
+
+```{r}
+##Confirming similar characteristics of the 3 data sets
+summary(Q5Train_Data)
+summary(Q5Test_Data)
+summary(Q5Val_Data)
+```
+```{r}
+Q5Train_Predictors<-Q5Train_Data[, c(1:6,8:14)] 
+Q5Test_Predictors<-Q5Test_Data[, c(1:6,8:14)]
+Q5Val_Predictors<-Q5Val_Data[, c(1:6,8:14)]
+
+Q5Train_labels <-Q5Train_Data[,7] 
+Q5Test_labels  <-Q5Test_Data[,7] 
+Q5Val_labels  <-Q5Val_Data[,7] 
+
+head(Q5Train_labels)
+head(Q5Test_labels)
+head(Q5Val_labels)
+```
+```{r}
+
+##Predicting outcomes for training data
+Q5Predicted_Train_labels <-knn(Q5Train_Predictors, 
+                           Q5Train_Predictors, 
+                           cl=Q5Train_labels, 
+               k=7 )
+
+##Confusion matrix for Model 2 training data
+CrossTable(x=Q5Train_labels,y=Q5Predicted_Train_labels, prop.chisq = FALSE)
+
+##Accuracy = .967
+##Recall = .6625
+##Precision = .99375
+```
+```{r}
+##Predicting outcomes for Test data
+
+Q5Predicted_Test_labels <-knn(Q5Train_Predictors, 
+                           Q5Test_Predictors, 
+                           cl=Q5Train_labels, 
+               k=7 )
+
+##Confusion matrix for Model 2 Test Data
+CrossTable(x=Q5Test_labels,y=Q5Predicted_Test_labels, prop.chisq = FALSE)
+
+## Accuracy = .957
+##Recall = .55
+##Precision = 1
+
+```
+```{r}
+##Predicting outcomes for validation data
+
+Q5Predicted_Val_labels <-knn(Q5Train_Predictors, 
+                           Q5Val_Predictors, 
+                           cl=Q5Train_labels, 
+               k=7 )
+
+##Confusion matrix for Model 2 validation data
+CrossTable(x=Q5Val_labels,y=Q5Predicted_Val_labels, prop.chisq = FALSE)
+
+## Accuracy = .9493
+##Recall = .472
+##Precision = 1
+```
+
+## The training data had the highest accuracy by a slight margin, while the test and validation data had equal precision (1) and moderate to poor recall. Assuming that the bank is interested in identifying customers most likely to accept personal loans in order to target those customers, then the training data metrics are "best" with the highest proportion of correctly indentified true positives. It is also no surprise that the training data outcomes resulted in the "best" metrics, as these data were used to create the model. Given that there is a relatively small number of true positives in the data, its not surprising the that precision was high for each of the 3 models. Future models should focus on tuning a higher recall, to better optimize predicting customers who are likely to accept a personal loan from the bank. 

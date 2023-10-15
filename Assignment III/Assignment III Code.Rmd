@@ -1,0 +1,149 @@
+---
+title: "Ohlemacher_Assignment III"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+---
+```{r}
+UniversalBank <- read.csv("C:\\Users\\Chris\\Desktop\\Jocelyn\\Machine Learning\\Assignment II\\UniversalBank.csv", header = TRUE, sep = ",")
+```
+
+```{r}
+library(caret)
+library(ISLR)
+# install.packages("e1071") 
+library(e1071)  
+```
+
+```{r}
+UniversalBank$CreditCard<-ifelse(UniversalBank$CreditCard==1,"CC_Yes","CC_No")
+UniversalBank$Personal.Loan<-ifelse(UniversalBank$Personal.Loan==1,"PL_Yes","PL_No")
+UniversalBank$Online<-ifelse(UniversalBank$Online==1,"Online_Yes","Online_No")
+```
+```{r}
+## Create Data Frame with only needed variables
+UB_NaiveBayes_Data <- UniversalBank[c("Personal.Loan", "Online", "CreditCard")]
+```
+
+```{r}
+##Divide Dataset into Training and Test Data
+set.seed(123)
+#Divide data into test and train
+Index_Train<-createDataPartition(UB_NaiveBayes_Data$Online, p=0.6, list=FALSE)
+UB_NB_Train <-UB_NaiveBayes_Data[Index_Train,]
+UB_NB_Test  <-UB_NaiveBayes_Data[-Index_Train,]
+UB_NB_Test_Labels <- UB_NB_Test[c("Personal.Loan")]
+```
+
+
+
+```{r}
+##A. 
+UB_NB_Train_Pivot<-table(UB_NB_Train$CreditCard, UB_NB_Train$Online, UB_NB_Train$Personal.Loan)
+print(UB_NB_Train_Pivot)
+
+```
+
+
+```{r}
+##B. 
+
+#P(Loan = 1 | CC = 1, Online = 1) = [P(Loan = 1) * P(CC = 1 | Loan = 1) * P(Online = 1 | Loan = 1)] / [P(CC = 1) * P(Online = 1)]	= .09652039
+
+# P(Loan = 1) = 0.0936666
+# P(CC = 1) = 0.29056981
+# P(Online = 1) =	0.596801066
+# P(CC = 1 | Loan = 1) = 0.3024911032
+# P(Online = 1 | Loan = 1) =	0.590747331
+
+Probably_IndividualB <- (0.0936666 * 0.3024911032 * 0.590747331) / (0.29056981 * 0.596801066)
+print(Probably_IndividualB)
+```
+
+```{r}
+##c.
+UniversalBank_Train_PivotC1<-table(UB_NB_Train$Personal.Loan, UB_NB_Train$Online)
+print(UniversalBank_Train_PivotC1)
+```
+
+```{r}
+##C.
+UniversalBank_Train_PivotC2<-table(UB_NB_Train$Personal.Loan, UB_NB_Train$CreditCard)
+
+print(UniversalBank_Train_PivotC2)
+```
+
+```{r}
+##D.
+
+##D.i P(CC=1|Loan=1)
+
+D.i<- (85/(196+85))
+print(D.i)
+```
+
+```{r}
+#D.ii P(Online=1|Loan=1)
+D.ii<- 166/(166+115)
+print(D.ii)
+```
+```{r}
+#D.iii P(Loan = 1) 
+D.iii <- (115+166)/3001
+print(D.iii)
+```
+
+```{r}
+#D.iv P(CC=1|Loan=0)
+D.iv<-787/(1933+787)
+print(D.iv)
+```
+
+```{r}
+#D.v P(Online = 1 | Loan = 0)
+D.v <-1625/(1625+1095)
+print(D.v)
+```
+
+```{r}
+#D.vi P(Loan=0)
+D.Vi <- (1095+1625)/3001
+print(D.Vi)
+```
+```{r}
+## E Compute Niave Bayes Probability P(Loan=1|CC=1,Online=1)
+E<- (D.i*D.ii*D.iii)/((D.i*D.ii*D.iii)+(D.iv*D.v*D.Vi))
+print (E)
+```
+```{r}
+##F. The probably calculated in part B of the assignment is more accurate, as it is the actual probably rather than the estimated probability. Niave Bayes makes the assumption that each predictor is independent, which is usually not the case in reality.
+```
+
+
+
+```{r}
+# Build a naïve Bayes classifier
+NB_model <-naiveBayes(Personal.Loan~CreditCard+Online,data = UB_NB_Train)
+NB_model
+```
+```{r}
+# Predict the Personal Loan acceptance status of test dataset 
+UB_NB_Predicted_Test_labels <-predict(NB_model,UB_NB_Test)
+UN_NB_Predicted_TestLabel_DF <-data.frame(UB_NB_Predicted_Test_labels)
+colnames(UN_NB_Predicted_TestLabel_DF) <-c("Personal.Loan")
+print(UN_NB_Predicted_TestLabel_DF)
+```
+
+```{r}
+##Predict probabilities instead of classifiers 
+UB_NB_Predicted_Test_probs <-predict(NB_model,UB_NB_Test, type="raw")
+print(UB_NB_Test)
+print(UB_NB_Predicted_Test_probs[19, ])
+##Row 19 in the output corresponds to P(Loan = 1 | CC = 1, Online = 1), probability = .0964, lower than the probability calculated in E, but approximately the same as the probability calculated in B. 
+
+## The required entries to calculate (Loan = 1 | CC = 1, Online = 1) are the counts of Personal.Loan = 1, Personal.Loan =0, CreditCard =1, and Online =1. 
+
+```
+

@@ -1,0 +1,135 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r}
+library(tidyverse)  # data manipulation
+install.packages("factoextra") 
+library(ISLR)
+library (factoextra)
+
+```
+
+```{r}
+pharma <- read.csv("C:\\Users\\Chris\\Desktop\\Jocelyn\\Machine Learning\\Assignment IV\\pharmaceuticals.csv", header = TRUE, sep = ",")
+
+summary(pharma)
+head(pharma)
+
+```
+
+```{r}
+## select columns with numerical variables
+pharma_kmeans1 <- pharma[, c(2:11)]
+pharma_kmeans <- pharma_kmeans1[, -1]
+print(pharma_kmeans)
+summary(pharma_kmeans)
+```
+```{r}
+##Data exploration - look for outliers, correlations between variables 
+boxplot(pharma_kmeans)
+## Market_Cap, PE Ratio, and ROE variables have outliers
+library(ggplot2)
+pairs(pharma_kmeans)
+
+## Scatter plots show correlations between variables 
+```
+```{r}
+correlation_matrix<-cor(pharma_kmeans)
+print(correlation_matrix)
+## Market cap, ROA and ROE, ROA have correlation co-efficient >.8, suggesting these variables are highly correlated 
+
+```
+
+```{r}
+## scale data
+# Scaling the data frame (z-score) 
+set.seed(54)
+pharma_scaled <- scale(pharma_kmeans)
+distance <- get_dist(pharma_scaled)
+fviz_dist(distance)
+```
+
+`
+```{r}
+## Determine best K 
+fviz_nbclust(pharma_scaled, kmeans, method = "wss")
+```
+```{r}
+fviz_nbclust(pharma_scaled, kmeans, method = "silhouette")
+
+##Best K = 5
+```
+```{r}
+## Market cap, ROA and ROE, ROA have correlation co-efficient >.8, meaning their R2 values are approximately .66, or approximately 66% of the variation is explained by this correlation. Therefore, ROA will be weighted to .33 to address the correlation. Market Cap and ROE only share a mild correlation with each other, so these will not be weighted. 
+pharma_scaled_df<-data.frame(pharma_scaled)
+print(pharma_scaled_df)
+weighted_ROA<-pharma_scaled_df$ROA*.33
+pharma_scaled_df$ROA<-weighted_ROA
+##check ROA is replaced by weighted ROA
+print(pharma_scaled_df)
+```
+
+```{r}
+##kmeans using euclidian distance 
+
+k5 <- kmeans(pharma_scaled_df, centers = 5, nstart = ) # k = 5, number of restarts = 25
+
+# Visualize the output
+
+k5$centers # output the centers
+
+k5$size # Number of companies in each cluster
+
+fviz_cluster(k5, data = pharma_scaled_df) # Visualize the output
+
+k5$cluster[1:21] # Identify the cluster of each company
+```
+
+
+```{r}
+install.packages("flexclust")
+library(flexclust)
+set.seed(54)
+#kmeans clustering, using manhattan distance
+k5_manhat = kcca(pharma_scaled_df, k=5, kccaFamily("kmedians"))
+k5_manhat
+
+k5manhat_cluster_assignments <- k5_manhat@cluster
+```
+```{r}
+k5manhat_cluster_assignments <- k5_manhat@cluster
+print(k5manhat_cluster_assignments)
+```
+```{r}
+install.packages("cluster")
+library(cluster)
+cluster_plot <- clusplot(pharma_scaled_df, k5_manhat@cluster, color = TRUE, shade = TRUE, labels = 2, lines = 0)
+
+centroids<-k5_manhat@centers
+print(centroids)
+
+```
+```{r}
+##Opt for Manhattan distance measure as it is better suited for datasets with outliers 
+
+##b. - see excel sheet for detail 
+
+##Cluster 1. characterized by lowest P:E and low revenue growth, but relatively high net profit margin. These companies seem to be stable but not increasing revenue
+##Cluster 2. Characterized by extremely high P:E but low net profit margin and otherwise average statistics. These companies are either overvalued are expected to produce high earnings in the future 
+##Cluster 3. Characterized by the lowest market cap (lowest worth by stock market), but highest leverage and revenue growth, these companies are making use of borrowing to grow. They have the lowest asset turnover, probably due to size and inability to benefit from scale. 
+##Cluster 4. Characterized by being the largest companies by market cap, with the lowest leverage but highest ROE and ROA, and relatively high revenue growth and net profit margins, these companies are likely using their own assets and equity for growth rather than borrowing. 
+## Cluster 5. Cluster with the second highest average market cap, but otherwise fairly average and stable. 
+
+#C. No strong patterns in the clusters related to non-numerical variables. Cluster 3, the cluster with lowest average market cap but high potential is the only cluster with companies trading outside of the NYSE.
+
+#D. 
+#Cluster 1: Stable but low revenue growth
+#Cluster 2: Overpriced or taking a gamble
+#Cluster 3: Bright future
+#Cluster 4: Big and getting bigger
+#Cluster 5: Big and stable 
+
+```
+
+

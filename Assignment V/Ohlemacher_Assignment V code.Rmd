@@ -1,0 +1,299 @@
+---
+title: "Assignment V"
+output:
+  pdf_document: default
+  html_notebook: default
+  html_document:
+    df_print: paged
+  word_document: default
+---
+
+```{r}
+# Load dataset
+cereals <- read.csv("C:\\Users\\Chris\\Desktop\\Jocelyn\\Machine Learning\\Assignment V\\cereals.csv", header = TRUE, sep = ",")
+cereals.df<-cereals
+
+library(tidyverse)
+library(factoextra)
+library(ISLR)
+library(cluster)
+
+```
+
+
+```{r}
+#Add row names
+row.names(cereals.df) <- cereals.df[,1]
+
+#remove column with names
+cereals.df<-cereals.df[,-1]
+```
+
+```{r}
+#Remove missing values
+cereals.df<-na.omit(cereals.df)
+head(cereals.df)
+```
+```{r}
+##one hot code categorical variables
+cereals.df$mfr_A<-ifelse(cereals.df$mfr=="A","1", 0)
+cereals.df$mfr_G<-ifelse(cereals.df$mfr=="G","1", 0)
+cereals.df$mfr_K<-ifelse(cereals.df$mfr=="K","1", 0)
+cereals.df$mfr_N<-ifelse(cereals.df$mfr=="N","1", 0)
+cereals.df$mfr_P<-ifelse(cereals.df$mfr=="P","1", 0)
+cereals.df$mfr_Q<-ifelse(cereals.df$mfr=="Q","1", 0)
+cereals.df$mfr_R<-ifelse(cereals.df$mfr=="R","1", 0)
+
+cereals.df$type_H<-ifelse(cereals.df$type=="H","1", 0)
+cereals.df$type_C<-ifelse(cereals.df$type=="C","1", 0)
+
+cereals.df$shelf_1<-ifelse(cereals.df$shelf==1,"1", 0)
+cereals.df$shelf_2<-ifelse(cereals.df$shelf==2,"1", 0)
+cereals.df$shelf_3<-ifelse(cereals.df$shelf==3,"1", 0)
+
+cereals.df.clean<-cereals.df[,-c(1, 2, 12)]
+
+#Remove missing values
+cereals.df.clean<-na.omit(cereals.df.clean)
+head(cereals.df.clean)
+
+
+row_names_save <- rownames(cereals.df.clean)
+```
+
+
+
+```{r}
+#Normalize quantitative values - exclude one hot coded variables
+
+scaled_columns <- scale(cereals.df.clean[,c("calories", "protein", "fat", "sodium", "fiber","carbo", "sugars", "potass", "vitamins", "weight", "cups", "rating" )])
+
+cereals.df.clean[,c("calories", "protein", "fat", "sodium", "fiber","carbo", "sugars", "potass", "vitamins", "weight", "cups", "rating" )] <-scaled_columns
+
+print(cereals.df.clean)
+```
+```{r}
+cereals.df.clean <- as.data.frame(lapply(cereals.df.clean, as.numeric))
+column_types <- sapply(cereals.df.clean, class)
+print(column_types)
+rownames(cereals.df.clean) <- row_names_save
+print(cereals.df.clean)
+```
+
+
+```{r}
+#Compute euclidian distances
+euc_dist <- dist(cereals.df.clean, method = "euclidean")
+euc_dist
+```
+
+
+```{r}
+hc_single<-agnes(cereals.df.clean, method = "single")
+print(hc_single$ac)
+pltree(hc_single, cex = 0.6, hang = -1, main = "Dendogram of agnes")
+
+```
+
+
+
+```{r}
+hc_complete<-agnes(cereals.df.clean, method = "complete")
+print(hc_complete$ac)
+pltree(hc_complete, cex = 0.6, hang = -1, main = "Dendogram of agnes")
+```
+
+
+```{r}
+hc_average<-agnes(cereals.df.clean, method = "average")
+print(hc_average$ac)
+pltree(hc_average, cex = 0.6, hang = -1, main = "Dendogram of agnes")
+```
+
+```{r}
+hc_ward<-agnes(cereals.df.clean, method = "ward")
+print(hc_ward$ac)
+pltree(hc_ward, cex = 0.6, hang = -1, main = "Dendogram of agnes")
+rect.hclust(hc_ward, k=10, border = 1:10)
+
+```
+
+
+```{r}
+##Ward linkage has highest AC, therefore is best method
+memb <- cutree(hc_ward, k = 10)
+memb
+row.names(cereals.df.clean) <- paste(memb, ": ", row.names(cereals.df), sep = "")
+
+```
+
+```{r}
+##Partition data 75% "training", 25% "test"
+
+library(caret)
+set.seed(256)
+index<-createDataPartition(cereals.df.clean$calories, p=.75, list=FALSE)
+PartitionA<-cereals.df.clean[index,]
+PartitionB<-cereals.df.clean[-index,]
+```
+
+```{r}
+##Re-run model on partitioned data using same parameters, determine cluster assignments
+
+hc_ward_A<-agnes(PartitionA, method = "ward")
+print(hc_ward_A$ac)
+pltree(hc_ward_A, cex = 0.6, hang = -1, main = "Dendogram of agnes")
+rect.hclust(hc_ward_A, k=10, border = 1:10)
+clusters_A<-cutree(hc_ward_A, k=10)
+clusters_A
+
+## The names of cereals contain their cluster assignments from the model run using all data. You can see that all cereals except 3 remain in their original clusters
+```
+```{r}
+##Calculate cluster centroids from Partition A clusters
+
+cluster1_indices <- which(clusters_A == 1)
+cluster1_points <- PartitionA[cluster1_indices, ]
+cluster1_centroid <- colMeans(cluster1_points, na.rm = TRUE)
+cluster1_centroid
+
+cluster2_indices <- which(clusters_A == 2)
+cluster2_points <- PartitionA[cluster2_indices, ]
+cluster2_centroid <- colMeans(cluster2_points, na.rm = TRUE)
+cluster2_centroid
+
+cluster3_indices <- which(clusters_A == 3)
+cluster3_points <- PartitionA[cluster3_indices, ]
+cluster3_centroid <- colMeans(cluster3_points, na.rm = TRUE)
+cluster3_centroid
+
+cluster4_indices <- which(clusters_A == 4)
+cluster4_points <- PartitionA[cluster4_indices, ]
+cluster4_centroid <- colMeans(cluster4_points, na.rm = TRUE)
+cluster4_centroid
+
+cluster5_indices <- which(clusters_A == 5)
+cluster5_points <- PartitionA[cluster5_indices, ]
+cluster5_centroid <- colMeans(cluster5_points, na.rm = TRUE)
+cluster5_centroid
+
+cluster6_indices <- which(clusters_A == 6)
+cluster6_points <- PartitionA[cluster6_indices, ]
+cluster6_centroid <- colMeans(cluster6_points, na.rm = TRUE)
+cluster6_centroid
+
+cluster7_indices <- which(clusters_A == 7)
+cluster7_points <- PartitionA[cluster7_indices, ]
+cluster7_centroid <- colMeans(cluster7_points, na.rm = TRUE)
+cluster7_centroid
+
+cluster8_indices <- which(clusters_A == 8)
+cluster8_points <- PartitionA[cluster8_indices, ]
+cluster8_centroid <- colMeans(cluster8_points, na.rm = TRUE)
+cluster8_centroid
+
+cluster9_indices <- which(clusters_A == 9)
+cluster9_points <- PartitionA[cluster9_indices, ]
+cluster9_centroid <- colMeans(cluster9_points, na.rm = TRUE)
+cluster9_centroid
+
+cluster10_indices <- which(clusters_A == 10)
+cluster10_points <- PartitionA[cluster10_indices, ]
+cluster10_centroid <- colMeans(cluster10_points, na.rm = TRUE)
+cluster10_centroid
+
+all_centroids<-data.frame(cluster1_centroid, cluster2_centroid, cluster3_centroid, cluster4_centroid, cluster5_centroid, cluster6_centroid, cluster7_centroid, cluster8_centroid, cluster9_centroid, cluster10_centroid)
+
+all_centroids<-t(all_centroids)
+```
+
+```{r}
+##Calculate euclidian distances between centroid values and "Partition B cereals". The centroid distances between themselves were intentionally kept as a cross check, as these should be 0.
+
+combined_data <- rbind(all_centroids, PartitionB)
+Partition_distances <- dist(combined_data, method = "euclidean")
+print(Partition_distances)
+Partition_distances<-as.matrix(Partition_distances)
+centroid_PartB_distances <- Partition_distances[, 1:10]
+
+##Find the centroid value with minimum distance to each Partition B cereal <- these are the cluster assignments for Parition B cereals based on Partition A centroids 
+New_Cluster_Assignment <- apply(centroid_PartB_distances, 1, which.min)
+print(New_Cluster_Assignment)
+PartB_PartA<-as.data.frame(New_Cluster_Assignment)
+print(PartB_PartA)
+```
+
+```{r}
+## In the Partition A model, we see that 3 cereals change clusters from the model run on all data ((56-3)/56=95%), approximately 95% stability using 75% of the data.
+
+##Comparing Partition B assignments using Partition A centroid values, we see that only 1 cereal (Just Right Fruit and Nut) is assigned to a different cluster than it was in the original model containing all data, suggesting that the clusters here are quite stable.
+
+##The model can be impacted by decisions such as how large the data set is, what portion of the data is used to "train" (Parition A) vs "test", randomization, etc. 
+```
+
+```{r}
+## In determining a cluster of "healthy cereals", the first step would be to remove the variables that have no relevance to health measures, such as manufacturer, type and shelf. It is unclear how customer rating is calculated, so we will also omit that variable for this mdoel. Second, it is prudent to scale the nutritional data to serving size. In this case, we will make all servings equal to 1 cup and adjust the nutritional data accordingly. Since we are adjusting serving size by cups, we will also drop weight variable.
+
+## From there, all data should be normalized for the purposes of building the model given the magnitude differences between variables (ie, between fats and potassium). However, its important to also reflect on raw data (ie, by evaluating raw mean values of each cluster), to determine which would be considered healthiest. 
+```
+
+```{r}
+cereals.df.healthy<-cereals.df[,-c(1,2,12, 13, 15)]
+
+##scale all nutrition variables to equal serving size (1 cup). Include "cups" as cross check that all values were scaled appropriately
+cereals.df.healthy$calories<-cereals.df.healthy$calories/cereals.df.healthy$cups
+cereals.df.healthy$protein<-cereals.df.healthy$protein/cereals.df.healthy$cups
+cereals.df.healthy$fat<-cereals.df.healthy$fat/cereals.df.healthy$cups
+cereals.df.healthy$sodium<-cereals.df.healthy$sodium/cereals.df.healthy$cups
+cereals.df.healthy$fiber<-cereals.df.healthy$fiber/cereals.df.healthy$cups
+cereals.df.healthy$carbo<-cereals.df.healthy$carbo/cereals.df.healthy$cups
+cereals.df.healthy$sugars<-cereals.df.healthy$sugars/cereals.df.healthy$cups
+cereals.df.healthy$potass<-cereals.df.healthy$potass/cereals.df.healthy$cups
+cereals.df.healthy$vitamins<-cereals.df.healthy$vitamins/cereals.df.healthy$cups
+cereals.df.healthy$cups<-cereals.df.healthy$cups/cereals.df.healthy$cups
+
+```
+
+```{r}
+##normalize data. Since cups is now equal for all cereals, it does not need to be included 
+cereals.healthy.df.norm <- scale(cereals.df.healthy[,1:9])
+##check scaling
+summary(cereals.healthy.df.norm)
+```
+```{r}
+##recluster
+hc_ward_healthy<-agnes(cereals.healthy.df.norm, method = "ward")
+print(hc_ward_healthy$ac)
+pltree(hc_ward_healthy, cex = 0.6, hang = -1, main = "Dendogram of agnes")
+##reconsider number of clusters
+rect.hclust(hc_ward_healthy, k=6, border = 1:6)
+```
+
+```{r}
+##add column for cluster assignment to RAW data to evaluate nutritional measures
+memb <- cutree(hc_ward_healthy, k = 6)
+memb
+cereals.df.healthy$Cluster <- memb
+```
+```{r}
+summary_by_cluster <- cereals.df.healthy %>%
+  group_by(Cluster) %>%
+  summarise(
+    Mean_calories = mean(calories),
+    mean_protein = mean(protein),
+    mean_fat = mean(fat),
+    mean_sodium = mean(sodium),
+    mean_fiber = mean(fiber),
+    mean_carbo = mean(carbo),
+    mean_sugars = mean(sugars),
+    mean_potass = mean(potass),
+    mean_vitamins = mean(vitamins))
+    
+print(summary_by_cluster)
+```
+```{r}
+## Cluster 6 has highest mean vitamins, fairly low mean sugars, fat and calories, and fairly middle of the road other values. It also includes 6 cereals, and would allow the school to offer a different cereal each day of the week. 
+
+## School might consider consulting with a dietitian to consider which nutritional components are most important for children, as it may be prudent to weight or adjust scaling based on this information. For example, children may actually benefit from moderate or higher amounts of calories, proteins, and fat than adults.
+```
+

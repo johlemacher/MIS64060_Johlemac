@@ -1,0 +1,409 @@
+---
+title: "Final Exam"
+author: "Jocelyn Ohlemacher"
+date: "2023-11-25"
+output: html_document
+---
+```{r}
+# Load dataset
+pudl_data <- read.csv("C:\\Users\\Chris\\Desktop\\Jocelyn\\Machine Learning\\Final_Exam\\fuel_receipts_costs_eia923.csv", header = TRUE, sep = ",")
+pudl_data<-as.data.frame(pudl_data)
+```
+
+
+```{r}
+## load pacakages
+install.packages("dbscan")
+install.packages("fpc")
+library(caret)
+library(tidyverse)
+library(ggplot2)
+library(ISLR)
+library(factoextra)
+library(dbscan)
+library(fpc)
+library(cluster)
+```
+
+```{r}
+##Create assignment dataset of 4% of original data. To ensure a sample of approximately 2% of data used for assignment, we will sample 3% original data, then drop data with missing fuel cost. 
+
+set.seed(1113)
+sampled_data <- pudl_data[sample(nrow(pudl_data), size = 0.03 * nrow(pudl_data)), ]
+```
+
+```{r}
+summary(sampled_data)
+```
+
+
+```{r}
+sampled_data$report_date <- as.Date(sampled_data$report_date, format = "%m/%d/%Y")
+
+sampled_data$report_year <- format(sampled_data$report_date, "%Y")
+```
+
+```{r}
+## Count missing data by variable
+missing_counts <- colSums(is.na(sampled_data))
+print(missing_counts)
+```
+
+```{r}
+## Show count of each fuel type
+count_fuel_type <- table(sampled_data$fuel_type_code_pudl)
+print(count_fuel_type)
+
+```
+
+
+```{r}
+## Columns mine_ID_pudl, mine_id_pudl_label,mercury_content_ppm, moisture_content_pct chlorine_content_ppm, natural_gas_transport_code have significant missing data and will be removed. Note that these data appear to only be applicable to fuel type = coal.
+
+library(tidyverse)
+missing_by_fuel_type <- sampled_data %>%
+  group_by(fuel_type_code_pudl) %>%
+  summarise(
+    missing_mine_id_pudl = sum(is.na(mine_id_pudl)),
+    missing_mine_id_pudl_label = sum(is.na(mine_id_pudl_label)),
+    missing_mercury_content_ppm = sum(is.na(mercury_content_ppm)),
+    missing_moisture_content_pct = sum(is.na(moisture_content_pct)),
+    missing_chlorine_content_ppm = sum(is.na(chlorine_content_ppm))
+  )
+print(missing_by_fuel_type)
+```
+
+
+```{r}
+missing_fuel.cost_by_fuel.type <- sampled_data %>%
+  group_by(fuel_type_code_pudl) %>%
+  summarise(missing_fuel_cost = sum(is.na(fuel_cost_per_mmbtu)))
+print(missing_fuel.cost_by_fuel.type)
+
+## While there is a high number of missing data for "fuel_cost_per_mmbtu", it is roughly evenly distributed by fuel type, therefore having representation in each of the groups and will not be dropped. To ensure a sample of approximately 2% of data used for assignment, we will sample 4% original data, then drop data with missing fuel cost. 
+```
+```{r}
+same_contract_type_data <- all(sampled_data$contract_type_code == sampled_data$contract_type_code_label)
+print(same_contract_type_data)
+
+##since these columns have the same data, column "contract_type_code_label" will be dropped
+```
+
+```{r}
+same_energy_source_code_data <- all(sampled_data$energy_source_code == sampled_data$energy_source_code_label)
+print(same_energy_source_code_data)
+
+##since these columns have the same data, column "energy_source_code_label" will be dropped
+```
+
+```{r}
+same_primary_transportation_mode_data <- all(sampled_data$primary_transportation_mode_code == sampled_data$primary_transportation_mode_code_label)
+print(same_primary_transportation_mode_data)
+##since these columns have the same data, column "primary_transportation_mode_code_label" will be dropped
+```
+```{r}
+same_secondary_transportation_mode_data <- all(sampled_data$secondary_transportation_mode_code == sampled_data$secondary_transportation_mode_code_label)
+print(same_secondary_transportation_mode_data)
+
+##since these columns have the same data, column "secondary_transportation_mode_code_label" will be dropped
+```
+```{r}
+same_data_maturity_data <- all(sampled_data$data_maturity == sampled_data$data_maturity_label)
+print(same_data_maturity_data)
+
+##since these columns have the same data, column "same_data_maturity_data" will be dropped
+```
+```{r}
+##remove columns as described above. Also remove rowID column, as the rowIDs are stored in row names. Additionally, remote report_date and report_year, as per pudl page, the data contained vs reprot date are not meaningful/consistent 
+sampled_data_2 <- sampled_data[, c(
+  "plant_id_eia", "plant_id_eia_label", 
+  "contract_type_code", "contract_expiration_date", "energy_source_code",
+  "fuel_type_code_pudl", "fuel_group_code", "supplier_name",
+  "fuel_received_units", "fuel_mmbtu_per_unit", "sulfur_content_pct",
+  "ash_content_pct", "fuel_cost_per_mmbtu", "primary_transportation_mode_code",
+  "secondary_transportation_mode_code", "data_maturity"
+)]
+
+## secondary_transportation_mode_code also has significant missing data and will by dropped
+
+sampled_data_3 <- sampled_data_2[, c(
+  "plant_id_eia", "plant_id_eia_label", 
+  "contract_type_code", "contract_expiration_date", "energy_source_code",
+  "fuel_type_code_pudl", "fuel_group_code", "supplier_name",
+  "fuel_received_units", "fuel_mmbtu_per_unit", "sulfur_content_pct",
+  "ash_content_pct", "fuel_cost_per_mmbtu", "primary_transportation_mode_code",
+   "data_maturity"
+)]
+
+```
+
+```{r}
+## The focus of this analysis will be on fuel types, therefore supplier data will also be dropped. Additionally, for the purposes of this analysis, we will not consider data maturity status relevant. 
+
+sampled_data_4 <- sampled_data_3[, c(
+  "contract_type_code", "energy_source_code",
+  "fuel_type_code_pudl", "fuel_group_code",
+  "fuel_received_units", "fuel_mmbtu_per_unit", "sulfur_content_pct",
+  "ash_content_pct", "fuel_cost_per_mmbtu", "primary_transportation_mode_code"
+)]
+
+```
+
+```{r}
+##Categorical data will one-hot coded for ease of analysis
+sampled_data_4$contract_type_C<-ifelse(sampled_data_4$contract_type_code=="C","1",0)
+sampled_data_4$contract_type_NC<-ifelse(sampled_data_4$contract_type_code=="NC","1",0)
+sampled_data_4$contract_type_S<-ifelse(sampled_data_4$contract_type_code=="S","1",0)
+sampled_data_4$contract_type_T<-ifelse(sampled_data_4$contract_type_code=="T","1",0)
+
+
+sampled_data_4$energy_source_code_BIT<-ifelse(sampled_data_4$energy_source_code=="BIT","1",0)
+sampled_data_4$energy_source_code_NG<-ifelse(sampled_data_4$energy_source_code=="NG","1",0)
+sampled_data_4$energy_source_code_DFO<-ifelse(sampled_data_4$energy_source_code=="DFO","1",0)
+sampled_data_4$energy_source_code_SUB<-ifelse(sampled_data_4$energy_source_code=="SUB","1",0)
+sampled_data_4$energy_source_code_LIG<-ifelse(sampled_data_4$energy_source_code=="LIG","1",0)
+sampled_data_4$energy_source_code_RFO<-ifelse(sampled_data_4$energy_source_code=="RFO","1",0)
+sampled_data_4$energy_source_code_WO<-ifelse(sampled_data_4$energy_source_code=="WO","1",0)
+sampled_data_4$energy_source_code_KER<-ifelse(sampled_data_4$energy_source_code=="KER","1",0)
+sampled_data_4$energy_source_code_PC<-ifelse(sampled_data_4$energy_source_code=="PC","1",0)
+sampled_data_4$energy_source_code_WC<-ifelse(sampled_data_4$energy_source_code=="WC","1",0)
+sampled_data_4$energy_source_code_PG<-ifelse(sampled_data_4$energy_source_code=="PG","1",0)
+sampled_data_4$energy_source_code_OG<-ifelse(sampled_data_4$energy_source_code=="OG","1",0)
+sampled_data_4$energy_source_code_JF<-ifelse(sampled_data_4$energy_source_code=="JF","1",0)
+sampled_data_4$energy_source_code_SC<-ifelse(sampled_data_4$energy_source_code=="SC","1",0)
+sampled_data_4$energy_source_code_BFG<-ifelse(sampled_data_4$energy_source_code=="BFG","1",0)
+sampled_data_4$energy_source_code_SGP<-ifelse(sampled_data_4$energy_source_code=="SGP","1",0)
+sampled_data_4$energy_source_code_RC<-ifelse(sampled_data_4$energy_source_code=="RC","1",0)
+
+
+sampled_data_4$fuel_type_coal<-ifelse(sampled_data_4$fuel_type_code_pudl=="coal","1",0)
+sampled_data_4$fuel_type_gas<-ifelse(sampled_data_4$fuel_type_code_pudl=="gas","1",0)
+sampled_data_4$fuel_type_oil<-ifelse(sampled_data_4$fuel_type_code_pudl=="oil","1",0)
+
+
+sampled_data_4$fuel_group_coal<-ifelse(sampled_data_4$fuel_group_code=="coal","1",0)
+sampled_data_4$fuel_group_natural_gas<-ifelse(sampled_data_4$fuel_group_code=="natural_gas","1",0)
+sampled_data_4$fuel_group_petroleum<-ifelse(sampled_data_4$fuel_group_code=="petroleum","1",0)
+sampled_data_4$fuel_group_petroleum_coke<-ifelse(sampled_data_4$fuel_group_code=="petroleum_coke","1",0)
+sampled_data_4$fuel_group_other_gas<-ifelse(sampled_data_4$fuel_group_code=="other_gas","1",0)
+
+
+sampled_data_4$primary_transportation_RV<-ifelse(sampled_data_4$primary_transportation_mode_code=="RV","1",0)
+sampled_data_4$primary_transportation_PL<-ifelse(sampled_data_4$primary_transportation_mode_code=="PL","1",0)
+sampled_data_4$primary_transportation_TR<-ifelse(sampled_data_4$primary_transportation_mode_code=="TR","1",0)
+sampled_data_4$primary_transportation_RR<-ifelse(sampled_data_4$primary_transportation_mode_code=="RR","1",0)
+sampled_data_4$primary_transportation_TC<-ifelse(sampled_data_4$primary_transportation_mode_code=="TC","1",0)
+sampled_data_4$primary_transportation_WT<-ifelse(sampled_data_4$primary_transportation_mode_code=="WT","1",0)
+sampled_data_4$primary_transportation_TP<-ifelse(sampled_data_4$primary_transportation_mode_code=="TP","1",0)
+sampled_data_4$primary_transportation_GL<-ifelse(sampled_data_4$primary_transportation_mode_code=="GL","1",0)
+
+
+##remove original categorical columns following one hot coding
+sampled_data_5 <- sampled_data_4[, -c(1:4, 10)]
+```
+
+```{r}
+sampled_data_5 <- as.data.frame(sapply(sampled_data_5, as.numeric))
+
+## Remove missing values
+sampled_data_5<-na.omit(sampled_data_5)
+```
+
+```{r}
+summary(sampled_data_5)
+
+## there are no "contract type Tolling", energy source "BFG" or energy source "RC" in the subsetted data, so those columns will be removed
+sampled_data_5 <- sampled_data_5[, -c(9,24,26)]
+
+
+```
+
+
+```{r}
+## Data exploration
+boxplot(sampled_data_5[, 1], main="fuel_recieved_units", col="red", ylim=c(0, 10000000))
+boxplot(sampled_data_5[, 2], main="fuel_mmbtu_per_unit", col="blue", ylim=c(0, 50))
+boxplot(sampled_data_5[, 3], main="sulfur_content_pct", col="yellow", ylim=c(0, 10))
+boxplot(sampled_data_5[, 4], main="ash_content_pct", col="pink", ylim=c(0, 75))
+boxplot(sampled_data_5[, 5], main="fuel_cost_per_mmbtu", col="purple", ylim=c(0, 55000))
+##fuel_cost_per_mmbtu has a significant outlier that is likely an error, data will be dropped.
+
+sampled_data_6 <- sampled_data_5[!(rownames(sampled_data_5) == 6390), ]
+
+##check outlier has been removed
+boxplot(sampled_data_6[, 5], main="fuel_cost_per_mmbtu", col="purple", ylim=c(0, 55000))
+##rerun boxplot using new axis values
+boxplot(sampled_data_6[, 5], main="fuel_cost_per_mmbtu", col="purple", ylim=c(0, 2500))
+```
+```{r}
+pairs(sampled_data_6[1:5])
+correlation_matrix <- cor(sampled_data_6[, 1:5])
+print(correlation_matrix)
+
+##strong correlation between fuel_mmbtu_per_unit and sulfur and ash content pct
+```
+```{r}
+##normalize numerical data, append one hot coded categorical data
+pudl_scaled <- scale(sampled_data_6[, 1:5])
+combined_pudl_scaled <- cbind(pudl_scaled, sampled_data_6[,6:39])
+```
+
+```{r}
+## kmeans cluster the data
+## determine optimal number of clusters
+fviz_nbclust(combined_pudl_scaled, kmeans, method = "silhouette")
+
+##best k = 10
+```
+```{r}
+set.seed(321)
+k10 <- kmeans(combined_pudl_scaled, centers = 10, nstart = 25)
+k10$centers
+k10$size
+fviz_cluster(k10, data = combined_pudl_scaled)
+
+## Using kmeans, we see that fuel types converge together in the plot
+
+##Cluster 4 = oil
+##Cluster 10,9,2 = coal
+##Cluster 1,3,5,6,7,8, = gas
+```
+
+
+
+
+```{r}
+k10$cluster
+```
+
+
+```{r}
+sampled_data_7<-sampled_data_6
+sampled_data_7$kemans_cluster<-k10$cluster
+sampled_data_7 <- sampled_data_7 %>%
+  mutate(
+    fuel = case_when(
+      fuel_type_oil == "1" ~ "oil",
+      fuel_type_coal == "1" ~ "coal",
+      fuel_type_gas == "1" ~ "gas",
+      TRUE ~ "other"
+    )
+  )
+
+```
+
+```{r}
+ggplot(sampled_data_7, aes(x = as.factor(fuel), fill = as.factor(k10$cluster))) +
+  geom_bar(position = "dodge", stat = "count") +
+  labs(title = "Cluster Assignments by Categorical Variable",
+       x = "Your Categorical Variable",
+       y = "Count",
+       fill = "Cluster") +
+  theme_minimal()
+
+```
+
+```{r}
+##not surprisingly, we see that each cluster is specific to a fuel type, so we will subset by fuel type before investigating further 
+
+pudl_coal_scaled<-combined_pudl_scaled[combined_pudl_scaled$fuel_type_coal == 1, ]
+##remove columns for fuel type "gas" and "oil"
+pudl_coal_scaled <- pudl_coal_scaled[, -c(24:26)]
+pudl_coal_scaled <- pudl_coal_scaled[, colSums(pudl_coal_scaled != 0) > 0, drop = FALSE]
+
+pudl_oil_scaled<-combined_pudl_scaled[combined_pudl_scaled$fuel_type_oil == 1, ]
+pudl_oil_scaled <- pudl_oil_scaled[, -c(4,24:26,29)]
+pudl_oil_scaled <- pudl_oil_scaled[, colSums(pudl_oil_scaled != 0) > 0, drop = FALSE]
+
+pudl_gas_scaled<-combined_pudl_scaled[combined_pudl_scaled$fuel_type_gas == 1, ]
+pudl_gas_scaled <- pudl_gas_scaled[, -c(3,4, 24:26)]
+pudl_gas_scaled <- pudl_gas_scaled[, colSums(pudl_gas_scaled != 0) > 0, drop = FALSE]
+```
+
+```{r}
+## kmeans cluster coal data
+## determine optimal number of clusters
+fviz_nbclust(pudl_coal_scaled, kmeans, method = "silhouette")
+
+##best k = 8
+```
+```{r}
+k_coal <- kmeans(pudl_coal_scaled, centers = 8, nstart = 25)
+k_coal$centers
+k_coal$size
+fviz_cluster(k_coal, data = pudl_coal_scaled)
+
+##within coal, we see that pertroleum coke stands apart as its own cluster
+##the other clusters appear to be predominately related to fuel mmbtu per unit and fuel subgroup, again suggesting that the type of fuel (and corresponding similar properties) drive clustering
+```
+```{r}
+## kmeans cluster oil data
+## determine optimal number of clusters
+fviz_nbclust(pudl_oil_scaled, kmeans, method = "silhouette")
+
+##best k = 3
+```
+```{r}
+k_oil <- kmeans(pudl_oil_scaled, centers = 3, nstart = 25)
+k_oil$centers
+k_oil$size
+fviz_cluster(k_oil, data = pudl_oil_scaled)
+
+##in oil, we see 1) clustering by oil subtype DFO vs RFO, and then between the two DFO clusters, we see differences in contract type and fuel cost.
+```
+```{r}
+## kmeans cluster gas data
+## determine optimal number of clusters
+fviz_nbclust(pudl_gas_scaled, kmeans, method = "silhouette")
+
+##best k = 3
+```
+
+```{r}
+set.seed(321)
+k_gas <- kmeans(pudl_gas_scaled, centers = 3, nstart = 25)
+k_gas$centers
+k_gas$size
+fviz_cluster(k_gas, data = pudl_gas_scaled)
+k_gas_clusters<-k_gas$cluster
+k_gas_cluster1 <- which(k_gas_clusters == 1)
+print(k_gas_cluster1)
+
+##we see that within the gas fuel type, there is a cluster of 5 with exceptionally high fuel cost per mmbtu. For the remaining two clusters, there is a amount of units received is quite different 
+```
+```{r}
+combined_pudl_scaled<-as.data.frame(combined_pudl_scaled)
+dbscan::kNNdistplot(combined_pudl_scaled, k=10)
+abline(h=2.25, lty=20)
+
+##optimal esp value = 2.25
+```
+
+```{r}
+set.seed(321)
+db <- fpc::dbscan(combined_pudl_scaled, eps = 2.25, MinPts = 5)
+fviz_cluster(db, combined_pudl_scaled,   stand = FALSE, frame = FALSE, geom = "point") 
+
+```
+```{r}
+print(db)
+db_clusters<-db$cluster
+noise_points <- which(db_clusters == 0)
+print(noise_points)
+
+selected_row_indices <- c(80, 88, 431, 840, 3660, 5005, 6785, 9327, 10232, 10625, 11493, 12486)
+db_noise_points <- combined_pudl_scaled[rownames(combined_pudl_scaled) %in% as.character(selected_row_indices), ]
+
+```
+
+```{r}
+db_cluster_centers <- aggregate(combined_pudl_scaled, by = list(db_clusters), FUN = mean)
+print(db_cluster_centers)
+##using DB scan, we again see that clusters align by fuel. In this case, 4 clusters are produced. In reviewing the centroids, we see that they align by "fuel group" and in this case, petroleum coke is represented as its own cluster 
+```
+
+```{r}
+hc_ward_coal<-agnes(pudl_coal_scaled, method= "ward")
+print(hc_ward_coal$ac)
+```
+
